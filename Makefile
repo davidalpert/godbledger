@@ -1,31 +1,33 @@
 BINARY := godbledger
 VERSION ?= latest
-PLATFORMS := linux
+PLATFORMS := linux darwin windows
 os = $(word 1, $@)
 
-GOBIN = ./build/bin
+GOBIN = ./bin/release # used only for the xgo builds
 GO ?= latest
 GORUN = env GO111MODULE=on go run
 
-# default target builds all binaries for local development/testing
-default: all
+# 'default' target builds all binaries for local development/testing
+default: local
 
-.PHONY: $(PLATFORMS)
-$(PLATFORMS):
-		mkdir -p release/$(BINARY)-$(os)-x64-v$(VERSION)/
-		GOOS=$(os) GOARCH=amd64 GO111MODULE=on go build -o release/$(BINARY)-$(os)-x64-v$(VERSION)/ ./...
+# 'all' target builds all binaries for each GOOS in $PLATFORMS using go build options
+all: $(PLATFORMS)
 
-.PHONY: release
-release: godbledger-linux-arm godbledger-darwin godbledger-windows
+# 'release' target builds os-specific builds of only godbledger using xgo/docker
+release: godbledger-darwin
+# release: godbledger-linux-arm godbledger-darwin godbledger-windows
 
-PHONY: clean
 clean:
+	rm -rf bin/
 	rm -rf build/
 	rm -rf release/
 	rm -rf cert/
 
-all:
+local:
 	GO111MODULE=on go run utils/ci.go install
+
+$(PLATFORMS):
+		GO111MODULE=on go run utils/ci.go install -os $(os)
 
 lint:
 	GO111MODULE=on go run utils/ci.go lint

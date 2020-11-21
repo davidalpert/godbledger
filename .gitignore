@@ -2,6 +2,7 @@
 bazel-*
 
 /tmp
+bin/
 */**/*un~
 */**/*.test
 *un~

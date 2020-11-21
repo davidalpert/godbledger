@@ -46,16 +46,16 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	"go/parser"
-	"go/token"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+
 	//"regexp"
 	"runtime"
 	"strings"
+
 	//"time"
 	//"github.com/cespare/cp"
 	"github.com/darcys22/godbledger/godbledger/version"
@@ -63,14 +63,12 @@ import (
 )
 
 var (
-	// Files that end up in the godbledger*.zip archive.
-	godbledgerArchiveFiles = []string{
-		executablePath("godbledger"),
-		executablePath("ledger_cli"),
-		executablePath("reporter"),
+	// TODO: could this be collapsed into debExecutables?
+	appsToBuild = []string{
+		"godbledger",
+		"ledger_cli",
+		"reporter",
 	}
-
-	allToolsArchiveFiles = godbledgerArchiveFiles
 
 	// A debian package is created for all executables listed here.
 	debExecutables = []debExecutable{
@@ -115,13 +113,32 @@ var (
 	}
 )
 
-var GOBIN, _ = filepath.Abs(filepath.Join("build", "bin"))
+func binPath() string {
+	path, _ := filepath.Abs("bin")
+	return path
+}
 
-func executablePath(name string) string {
-	if runtime.GOOS == "windows" {
+func osBinPath(goos string) string {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	return filepath.Join(binPath(), goos)
+}
+
+func releaseBinPath() string {
+	return filepath.Join(binPath(), "release")
+}
+
+func executablePath(name string, goos string) string {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+
+	if goos == "windows" {
 		name += ".exe"
 	}
-	return filepath.Join(GOBIN, name)
+
+	return filepath.Join(osBinPath(goos), name)
 }
 
 func main() {
@@ -159,11 +176,17 @@ func main() {
 
 func doInstall(cmdline []string) {
 	var (
+		goos = flag.String("os", "", "GOOS to cross build for")
 		arch = flag.String("arch", "", "Architecture to cross build for")
 		cc   = flag.String("cc", "", "C compiler to cross build with")
 	)
+	// fmt.Printf("install cmdline: %#v\n", cmdline)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
+	// fmt.Printf("install flag os: %#v\n", *goos)
+	// fmt.Printf("install flag ar: %#v\n", *arch)
+	// fmt.Printf("install flag cc: %#v\n", *cc)
+	// fmt.Printf("install cmd env: %#v\n", env)
 
 	// Check Go version. People regularly open issues about compilation
 	// failure with outdated Go. This should save them the trouble.
@@ -185,42 +208,48 @@ func doInstall(cmdline []string) {
 		packages = flag.Args()
 	}
 
-	if *arch == "" || *arch == runtime.GOARCH {
-		goinstall := goTool("install", buildFlags(env)...)
-		if runtime.GOARCH == "arm64" {
-			goinstall.Args = append(goinstall.Args, "-p", "1")
-		}
-		goinstall.Args = append(goinstall.Args, "-v")
-		goinstall.Args = append(goinstall.Args, packages...)
-		build.MustRun(goinstall)
-		return
-	}
+	// if *arch == "" || *arch == runtime.GOARCH {
+	// 	goinstall := goTool("install", buildFlags(env)...)
+	// 	if runtime.GOARCH == "arm64" {
+	// 		goinstall.Args = append(goinstall.Args, "-p", "1")
+	// 	}
+	// 	goinstall.Args = append(goinstall.Args, "-v")
+	// 	goinstall.Args = append(goinstall.Args, packages...)
+	// 	build.MustRun(goinstall)
+	// 	return
+	// }
 
 	// Seems we are cross compiling, work around forbidden GOBIN
-	goinstall := goToolArch(*arch, *cc, "install", buildFlags(env)...)
+	os.MkdirAll(osBinPath(*goos), os.ModePerm)
+	goinstall := goToolArch(*goos, *arch, *cc, "tool compile", buildFlags(env)...)
+	// goinstall.Args = append(goinstall.Args, []string{"-buildmode", "archive"}...)
+	goinstall.Args = append(goinstall.Args, []string{"-o", osBinPath(*goos)}...)
 	goinstall.Args = append(goinstall.Args, "-v")
-	goinstall.Args = append(goinstall.Args, []string{"-buildmode", "archive"}...)
 	goinstall.Args = append(goinstall.Args, packages...)
 	build.MustRun(goinstall)
 
-	if cmds, err := ioutil.ReadDir("cmd"); err == nil {
-		for _, cmd := range cmds {
-			pkgs, err := parser.ParseDir(token.NewFileSet(), filepath.Join(".", "cmd", cmd.Name()), nil, parser.PackageClauseOnly)
-			if err != nil {
-				log.Fatal(err)
-			}
-			for name := range pkgs {
-				if name == "main" {
-					gobuild := goToolArch(*arch, *cc, "build", buildFlags(env)...)
-					gobuild.Args = append(gobuild.Args, "-v")
-					gobuild.Args = append(gobuild.Args, []string{"-o", executablePath(cmd.Name())}...)
-					gobuild.Args = append(gobuild.Args, "."+string(filepath.Separator)+filepath.Join("cmd", cmd.Name()))
-					build.MustRun(gobuild)
-					break
-				}
-			}
-		}
-	}
+	return
+
+	// TODO: this code should be sufficient if the main apps are arranged into a ./cmd folder
+	//       for example: see https://github.com/golang-standards/project-layout#cmd
+	// if cmds, err := ioutil.ReadDir("cmd"); err == nil {
+	// 	for _, cmd := range cmds {
+	// 		pkgs, err := parser.ParseDir(token.NewFileSet(), filepath.Join(".", "cmd", cmd.Name()), nil, parser.PackageClauseOnly)
+	// 		if err != nil {
+	// 			log.Fatal(err)
+	// 		}
+	// 		for name := range pkgs {
+	// 			if name == "main" {
+	// 				gobuild := goToolArch(*goos, *arch, *cc, "build", buildFlags(env)...)
+	// 				gobuild.Args = append(gobuild.Args, "-v")
+	// 				gobuild.Args = append(gobuild.Args, []string{"-o", executablePath(cmd.Name(), *goos)}...)
+	// 				gobuild.Args = append(gobuild.Args, "."+string(filepath.Separator)+filepath.Join("cmd", cmd.Name()))
+	// 				build.MustRun(gobuild)
+	// 				break
+	// 			}
+	// 		}
+	// 	}
+	// }
 }
 
 func buildFlags(env build.Environment) (flags []string) {
@@ -240,20 +269,37 @@ func buildFlags(env build.Environment) (flags []string) {
 }
 
 func goTool(subcmd string, args ...string) *exec.Cmd {
-	return goToolArch(runtime.GOARCH, os.Getenv("CC"), subcmd, args...)
+	return goToolArch(runtime.GOOS, runtime.GOARCH, os.Getenv("CC"), subcmd, args...)
 }
 
-func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd {
+func goToolArch(goos string, arch string, cc string, subcmd string, args ...string) *exec.Cmd {
 	cmd := build.GoTool(subcmd, args...)
-	if arch == "" || arch == runtime.GOARCH {
-		cmd.Env = append(cmd.Env, "GOBIN="+GOBIN)
-	} else {
-		cmd.Env = append(cmd.Env, "CGO_ENABLED=1")
-		cmd.Env = append(cmd.Env, "GOARCH="+arch)
+
+	// default GOOS to local runtime
+	if goos == "" {
+		goos = runtime.GOOS
 	}
+	cmd.Env = append(cmd.Env, "GOOS="+goos)
+
+	// default GOARCH to local runtime
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+	cmd.Env = append(cmd.Env, "GOARCH="+arch)
+
+	// SQLLite dependency requires that CGO is enabled
+	cmd.Env = append(cmd.Env, "CGO_ENABLED=1")
 	if cc != "" {
 		cmd.Env = append(cmd.Env, "CC="+cc)
 	}
+
+	// temporarily override GOBIN to our local build output folder
+	cmd.Env = append(cmd.Env, "GOBIN="+osBinPath(goos))
+
+	// dump our customized env for debugging
+	// fmt.Printf("goToolArch has env: %#v\n", cmd.Env)
+
+	// inject local environment (other than GOBIN)
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GOBIN=") {
 			continue
@@ -782,39 +828,37 @@ func doXgo(cmdline []string) {
 	env := build.Env()
 
 	// Make sure xgo is available for cross compilation
-	//gogetxgo := goTool("get", "github.com/techknowlogick/xgo")
 	gogetxgo := goTool("get", "src.techknowlogick.com/xgo")
+	gogetxgo.Env = append(gogetxgo.Env, "GOBIN="+binPath())
 	build.MustRun(gogetxgo)
 
 	// If all tools building is requested, build everything the builder wants
 	args := append(buildFlags(env), flag.Args()...)
 
 	if *alltools {
-		args = append(args, []string{"--dest", GOBIN}...)
-		for _, res := range allToolsArchiveFiles {
-			if strings.HasPrefix(res, GOBIN) {
-				// Binary tool found, cross build it explicitly
-				args = append(args, "./"+filepath.Base(res))
-				xgo := xgoTool(args)
-				build.MustRun(xgo)
-				args = args[:len(args)-1]
-			}
+		args = append(args, []string{"--dest", releaseBinPath()}...)
+		for _, res := range appsToBuild {
+			// Binary tool found, cross build it explicitly
+			args = append(args, "./"+filepath.Base(res))
+			xgo := xgoTool(args)
+			build.MustRun(xgo)
+			args = args[:len(args)-1]
 		}
 		return
 	}
 	// Otherwise xxecute the explicit cross compilation
 	path := args[len(args)-1]
-	args = append(args[:len(args)-1], []string{"--dest", GOBIN, path}...)
+	args = append(args[:len(args)-1], []string{"--dest", releaseBinPath(), path}...)
 
 	xgo := xgoTool(args)
 	build.MustRun(xgo)
 }
 
 func xgoTool(args []string) *exec.Cmd {
-	cmd := exec.Command(filepath.Join(GOBIN, "xgo"), args...)
+	cmd := exec.Command(filepath.Join(binPath(), "xgo"), args...)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, []string{
-		"GOBIN=" + GOBIN,
+		"GOBIN=" + releaseBinPath(),
 	}...)
 	return cmd
 }

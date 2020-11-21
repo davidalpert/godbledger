@@ -1,8 +1,13 @@
 #!/bin/bash
 
 version=$1
-build=linux
-#build=arm
+packages=(
+  "godbledger-linux-arm-5"
+  # "godbledger-linux-arm-7"
+  # "godbledger-linux-arm-64"
+  "godbledger-darwin-10.6-amd64"
+  # "godbledger-darwin-10.6-amd64"
+)
 
 if [ -z "$version" ]
 then
@@ -11,19 +16,17 @@ then
 fi
 
 make VERSION=$version release
-make VERSION=$version linux-arm-7
-make VERSION=$version linux-arm-64
 
-WORKING_DIR=release/
+WORKING_DIR=bin/release/
 
 echo "Working in $WORKING_DIR..."
 
 mkdir -p $WORKING_DIR
 cd $WORKING_DIR
 
-tar -czvf godbledger-$build-x64-v$version.tar.gz godbledger-$build-x64-v$version
-tar -czvf godbledger-arm7-v$version.tar.gz godbledger-arm7-v$version
-tar -czvf godbledger-arm64-v$version.tar.gz godbledger-arm64-v$version
+for package in packages; do
+  tar -czvf "$package-v$version.tar.gz" "$package"
+done
 
 echo '#### sha256sum'
 sha256sum godbledger-*-v$version.tar.gz
