@@ -208,30 +208,35 @@ func doInstall(cmdline []string) {
 		packages = flag.Args()
 	}
 
-	// if *arch == "" || *arch == runtime.GOARCH {
-	// 	goinstall := goTool("install", buildFlags(env)...)
-	// 	if runtime.GOARCH == "arm64" {
-	// 		goinstall.Args = append(goinstall.Args, "-p", "1")
-	// 	}
-	// 	goinstall.Args = append(goinstall.Args, "-v")
-	// 	goinstall.Args = append(goinstall.Args, packages...)
-	// 	build.MustRun(goinstall)
-	// 	return
-	// }
+	if *goos != runtime.GOOS {
+		log.Printf("attempting to cross-compile to %s/%s on %s/%s\n", *goos, *arch, runtime.GOOS, runtime.GOARCH)
+		log.Printf("please use the xgo subcommand to cross-compile consistently")
+		os.Exit(1)
+	}
+
+	if *arch == runtime.GOARCH {
+		goinstall := goTool("build", buildFlags(env)...)
+		if runtime.GOARCH == "arm64" {
+			goinstall.Args = append(goinstall.Args, "-p", "1")
+		}
+		goinstall.Args = append(goinstall.Args, "-v")
+		goinstall.Args = append(goinstall.Args, packages...)
+		build.MustRun(goinstall)
+		return
+	}
 
 	// Seems we are cross compiling, work around forbidden GOBIN
 	os.MkdirAll(osBinPath(*goos), os.ModePerm)
-	goinstall := goToolArch(*goos, *arch, *cc, "tool compile", buildFlags(env)...)
+	// use xgo for consistency across platforms
+	goinstall := goToolArch(*goos, *arch, *cc, "build", buildFlags(env)...)
 	// goinstall.Args = append(goinstall.Args, []string{"-buildmode", "archive"}...)
 	goinstall.Args = append(goinstall.Args, []string{"-o", osBinPath(*goos)}...)
 	goinstall.Args = append(goinstall.Args, "-v")
 	goinstall.Args = append(goinstall.Args, packages...)
 	build.MustRun(goinstall)
 
-	return
-
-	// TODO: this code should be sufficient if the main apps are arranged into a ./cmd folder
-	//       for example: see https://github.com/golang-standards/project-layout#cmd
+	// TODO: this code can discover apps to build by convention is them main packages are arranged into subfolders
+	//       under ./cmd (e.g. ./cmd/godbledger/main.go; see https://github.com/golang-standards/project-layout#cmd)
 	// if cmds, err := ioutil.ReadDir("cmd"); err == nil {
 	// 	for _, cmd := range cmds {
 	// 		pkgs, err := parser.ParseDir(token.NewFileSet(), filepath.Join(".", "cmd", cmd.Name()), nil, parser.PackageClauseOnly)
