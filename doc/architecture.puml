@@ -33,12 +33,21 @@ rectangle godbledgerWeb as "godbledger-web" {
   rectangle webTransactionClient as "GRPC Client\n /transaction" #Darkorange
 }
 
+' other-client is an example of another independent client app
+'              which provides read/write access over top of
+'              the godbledger financial system
+rectangle otherClient as "other-client" #AntiqueWhite {
+  rectangle otherDBClient as "native\ndb client" #CornflowerBlue
+  rectangle otherTransactionClient as "GRPC Client\n /transaction" #Darkorange
+}
+
 ' ' uncomment these lines to show that the transaction API and Client code
 ' ' is generated from a comon protobuf transaction definition
 ' rectangle protoTransaction as "protobuf:\n /transaction"
 ' protoTransaction ---> transactionAPI
 ' protoTransaction -up-> ledgerCLITransactionClient
 ' protoTransaction -up-> webTransactionClient
+' protoTransaction -up-> otherTransactionClient
 
 ' godbledger (server) talks directly to the database
 ' and should be a proxy for all calls which send commands
@@ -46,15 +55,15 @@ rectangle godbledgerWeb as "godbledger-web" {
 serverDBClient --> db
 
 ' ledger_cli talks only to the server API to enter transactions
-ledgerCLITransactionClient --> transactionAPI
+ledgerCLITransactionClient ---> transactionAPI
 
 ' internally (inside the server) the transaction API uses the
 ' server's DB client to write transactions into the database
-transactionAPI --> serverDBClient
+transactionAPI -right-> serverDBClient
 
 ' reporter talks directly to the database
 ' (read-only access should be sufficient)
-reporterDBClient -right-> db
+reporterDBClient -right--> db
 
 ' a web client can import the godbledger 'ledger' package
 ' to talk directly to the ledger database using the server's
@@ -65,5 +74,9 @@ webDBClient --> db
 ' /transaction) and use them to send new transactions into the
 ' system
 webTransactionClient --> transactionAPI
+
+' another client could use the 
+otherDBClient --> db
+otherTransactionClient --> transactionAPI
 
 @enduml
