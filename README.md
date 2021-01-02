@@ -9,7 +9,7 @@
 [Book Status]:https://img.shields.io/badge/user--docs-master-informational
 [Book Link]: https://github.com/darcys22/godbledger/wiki
 
-![cached image](http://www.plantuml.com/plantuml/proxy?src=https://raw.github.com/darcys22/godbledger/master/src/doc/architecture.puml)
+![cached image](http://www.plantuml.com/plantuml/proxy?src=https://raw.github.com/davidalpert/godbledger/readme-updates/src/doc/architecture.puml)
 
 GoDBLedger is an open source accounting system that aims to make the recording of double entry bookkeeping transactions programmable. It provide users with normal features that most finance systems tend to lack such as api endpoints for your scripts and a database backend with a clear schema so you can analyse your financial data using your software of choice. The ultimate goal is for your whole financial process to be automated from data entry to compilation of financials/tax returns.
 
