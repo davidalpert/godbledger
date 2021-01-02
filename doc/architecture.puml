@@ -1,0 +1,69 @@
+@startuml
+
+' GoDBLedger provides an API for data entry ensuring that
+'            data entered into the underlying database are 
+'            normalized into a structured schema
+rectangle godbledgerServer as "godbledger (server)" #LawnGreen {
+  rectangle serverDBClient as "ledger\ndb client" #LightGreen
+  rectangle transactionAPI as "GRPC API\n /transaction" #Darkorange
+}
+
+' GoDBLedger database exposes the ledger data for consumption
+'            by a reporter client
+database db as "GoDBLedger\nDatabase\n(MySQL / SQLite)" #LawnGreen
+
+' ledger_cli is a sample CLI client which demonstrates using the
+'            Transaction GPRC API to enter a double-entry style
+'            transaction into the system
+rectangle ledger_cli as "ledger_cli" {
+  rectangle ledgerCLITransactionClient as "GRPC Client\n /transaction" #Darkorange
+}
+
+' reporter is a sample CLI client which can render a few simple
+'          financial reports directly from the underlying database
+rectangle reporter as "reporter" {
+  rectangle reporterDBClient as "ledger\ndb client" #LightGreen
+}
+
+' godbledger-web is an example of an independent web UI client
+'                which provides read/write access over top of
+'                the godbledger financial system
+rectangle godbledgerWeb as "godbledger-web" {
+  rectangle webDBClient as "ledger\ndb client" #LightGreen
+  rectangle webTransactionClient as "GRPC Client\n /transaction" #Darkorange
+}
+
+' ' uncomment these lines to show that the transaction API and Client code
+' ' is generated from a comon protobuf transaction definition
+' rectangle protoTransaction as "protobuf:\n /transaction"
+' protoTransaction ---> transactionAPI
+' protoTransaction -up-> ledgerCLITransactionClient
+' protoTransaction -up-> webTransactionClient
+
+' godbledger (server) talks directly to the database
+' and should be a proxy for all calls which send commands
+' (i.e. writes) into the system
+serverDBClient --> db
+
+' ledger_cli talks only to the server API to enter transactions
+ledgerCLITransactionClient --> transactionAPI
+
+' internally (inside the server) the transaction API uses the
+' server's DB client to write transactions into the database
+transactionAPI --> serverDBClient
+
+' reporter talks directly to the database
+' (read-only access should be sufficient)
+reporterDBClient -right-> db
+
+' a web client can import the godbledger 'ledger' package
+' to talk directly to the ledger database using the server's
+' ledger database connection logic
+webDBClient --> db
+
+' a web client can also import the server's GRPC clients (e.g
+' /transaction) and use them to send new transactions into the
+' system
+webTransactionClient --> transactionAPI
+
+@enduml
