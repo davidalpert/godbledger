@@ -1,1 +1,5 @@
 theme: jekyll-theme-slate
+show_downloads: true
+github:
+  zip_url: foo.com
+  tar_url: bar.com

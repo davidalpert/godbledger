@@ -46,3 +46,9 @@ release
 /build/dist/
 build/_vendor/pkg
 cert
+
+# docs/jekyll build
+doc/tmp/
+docs/.sass-cache/
+docs/_site/
+

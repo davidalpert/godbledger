@@ -1,3 +1,6 @@
+---
+title: Full Server Setup
+---
 # Guide on Setting up a Full Server
 
 This document will tell you exactly how to set up and operate a full server. This document was written with non-developers in mind, so people new to linux or command line operations should be able to follow along without any trouble. 

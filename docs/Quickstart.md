@@ -1,3 +1,7 @@
+---
+title: Quickstart
+---
+
 On Ubuntu 18.04
 
 **Download the latest release and run the server**
